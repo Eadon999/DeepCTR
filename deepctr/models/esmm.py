@@ -1,3 +1,11 @@
+"""
+Author:
+    Eadon999, 835538502@qq.com
+
+Reference:
+    Xiao Ma, Liqin Zhao, Guan Huang, Zhi Wang, Zelin Hu, Xiaoqiang Zhu, Kun Gai. 2018. Entire Space Multi-Task Model: An Effective Approach for Estimating Post-Click Conversion Rate
+"""
+
 from itertools import chain
 
 import tensorflow as tf
@@ -9,7 +17,7 @@ from ..layers.utils import concat_func, add_func, combined_dnn_input
 
 
 class ESMM:
-    """Instantiates the DeepFM Network architecture.
+    """Instantiates the ESMM: Base Model:DeepFM Network architecture.
 
     :param linear_feature_columns: An iterable containing all the features used by linear part of the model.
     :param dnn_feature_columns: An iterable containing all the features used by deep part of the model.
@@ -67,14 +75,14 @@ class ESMM:
     def ctr_model(self, linear_logit, group_embedding_dict, dense_value_list):
         fm_logit = add_func([FM()(concat_func(v, axis=1))
                              for k, v in group_embedding_dict.items() if k in self.fm_group])
-        print("=================================:", group_embedding_dict.items())
-        print("=======concat==========:",
-              [concat_func(v, axis=1) for k, v in group_embedding_dict.items() if k in self.fm_group])
+        # print("=================================:", group_embedding_dict.items())
+        # print("=======concat==========:",
+        #       [concat_func(v, axis=1) for k, v in group_embedding_dict.items() if k in self.fm_group])
 
-        for k, v in group_embedding_dict.items():
-            print(k, "<------------------>", v)
-            print("==========v len:{}===========".format(len(v)))
-        print("==========fm group:{}=============".format(self.fm_group))
+        # for k, v in group_embedding_dict.items():
+        #     print(k, "<------------------>", v)
+        #     print("==========v len:{}===========".format(len(v)))
+        # print("==========fm group:{}=============".format(self.fm_group))
 
         dnn_input = combined_dnn_input(list(chain.from_iterable(
             group_embedding_dict.values())), dense_value_list)
@@ -113,12 +121,3 @@ class ESMM:
 
         output = PredictionLayer(self.task)(final_logit)
         return output
-
-
-if __name__ == '__main__':
-    linear_feature_columns, dnn_feature_columns = [], []
-    ctcvr = ESMM(linear_feature_columns, dnn_feature_columns)
-    ctcvr_model = ctcvr.build()
-    opt = tf.optimizers.Adam(lr=0.003, decay=0.0001)
-    ctcvr_model.compile(optimizer=opt, loss=["binary_crossentropy", "binary_crossentropy"], loss_weights=[1.0, 1.0],
-                        metrics=[tf.keras.metrics.AUC()])

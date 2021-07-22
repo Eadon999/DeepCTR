@@ -63,16 +63,20 @@ class ESMM:
                                                                             self.l2_reg_embedding,
                                                                             self.seed, support_group=True)
 
-        ctr_sigmoid = self.ctr_model(linear_logit, group_embedding_dict, dense_value_list)
-        cvr_sigmoid = self.cvr_model(linear_logit, group_embedding_dict, dense_value_list)
+        ctr_sigmoid = self._ctr_model(linear_logit, group_embedding_dict, dense_value_list)
+        cvr_sigmoid = self._cvr_model(linear_logit, group_embedding_dict, dense_value_list)
 
-        ctcvr_sigmoid = tf.multiply(ctr_sigmoid, cvr_sigmoid)
+        ctcvr_sigmoid = tf.keras.layers.Multiply(name='ctcvr_score')([ctr_sigmoid, cvr_sigmoid])
 
+        # recommend the way: model = tf.keras.models.Model(inputs=inputs_list, outputs=[ctr_sigmoid, ctcvr_sigmoid]), when use predict need not to use model.output_names to confirm record
         model = tf.keras.models.Model(inputs=inputs_list, outputs=[ctr_sigmoid, ctcvr_sigmoid])
+        # #the of dict is value's layer(tensor) name
+        # model = tf.keras.models.Model(inputs=inputs_list,
+        #                              outputs={"ctr_output": ctr_sigmoid, "ctcvr_score": ctcvr_sigmoid})
 
         return model
 
-    def ctr_model(self, linear_logit, group_embedding_dict, dense_value_list):
+    def _ctr_model(self, linear_logit, group_embedding_dict, dense_value_list):
         fm_logit = add_func([FM()(concat_func(v, axis=1))
                              for k, v in group_embedding_dict.items() if k in self.fm_group])
         # print("=================================:", group_embedding_dict.items())
@@ -87,37 +91,31 @@ class ESMM:
         dnn_input = combined_dnn_input(list(chain.from_iterable(
             group_embedding_dict.values())), dense_value_list)
         dnn_output = DNN(self.dnn_hidden_units, self.dnn_activation, self.l2_reg_dnn, self.dnn_dropout, self.dnn_use_bn,
-                         seed=self.seed)(dnn_input)
+                         seed=self.seed, name='ctr_dnn')(dnn_input)
         dnn_logit = tf.keras.layers.Dense(1, use_bias=False,
-                                          kernel_initializer=tf.keras.initializers.glorot_normal(seed=self.seed))(
+                                          kernel_initializer=tf.keras.initializers.glorot_normal(seed=self.seed),
+                                          name='ctr_dnn_logit')(
             dnn_output)
 
         final_logit = add_func([linear_logit, fm_logit, dnn_logit])
 
-        output = PredictionLayer(self.task)(final_logit)
+        output = PredictionLayer(self.task, name='ctr_output')(final_logit)
         return output
 
-    def cvr_model(self, linear_logit, group_embedding_dict, dense_value_list):
+    def _cvr_model(self, linear_logit, group_embedding_dict, dense_value_list):
         fm_logit = add_func([FM()(concat_func(v, axis=1))
                              for k, v in group_embedding_dict.items() if k in self.fm_group])
-        print("=================================:", group_embedding_dict.items())
-        print("=======concat==========:",
-              [concat_func(v, axis=1) for k, v in group_embedding_dict.items() if k in self.fm_group])
-
-        for k, v in group_embedding_dict.items():
-            print(k, "<------------------>", v)
-            print("==========v len:{}===========".format(len(v)))
-        print("==========fm group:{}=============".format(self.fm_group))
 
         dnn_input = combined_dnn_input(list(chain.from_iterable(
             group_embedding_dict.values())), dense_value_list)
         dnn_output = DNN(self.dnn_hidden_units, self.dnn_activation, self.l2_reg_dnn, self.dnn_dropout, self.dnn_use_bn,
-                         seed=self.seed)(dnn_input)
+                         seed=self.seed, name='cvr_dnn')(dnn_input)
         dnn_logit = tf.keras.layers.Dense(1, use_bias=False,
-                                          kernel_initializer=tf.keras.initializers.glorot_normal(seed=self.seed))(
+                                          kernel_initializer=tf.keras.initializers.glorot_normal(seed=self.seed),
+                                          name='cvr_dnn_logit')(
             dnn_output)
 
         final_logit = add_func([linear_logit, fm_logit, dnn_logit])
 
-        output = PredictionLayer(self.task)(final_logit)
+        output = PredictionLayer(self.task, name='cvr_output')(final_logit)
         return output

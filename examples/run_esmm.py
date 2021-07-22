@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 import tensorflow as tf
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard
 
 
 def input_fn_tfrecord4keras(filenames, feature_description, label=None, batch_size=256, num_epochs=1,
@@ -22,8 +23,9 @@ def input_fn_tfrecord4keras(filenames, feature_description, label=None, batch_si
             # del features['label']
             labels = features.pop(label)
 
-            # 多个label在tf1中要放到元组中(list dict中都不行)：return features, (labels, labels)；tf2中不用放元组中直接：return features, labels, labels
-            #程序正常，但是结果有不准确，用法不对。故：建议用元组方式
+            # 多个label在tf1中要放到元组中(list )：return features, (labels, labels)；tf2中不用放元组中直接：return features, labels, labels时 程序正常，但是结果有不准确，用法不对。故：建议用元组方式
+            # 如果使用dict则dict的key name要和Model(outputs=[]),中所用的layer name一致
+            # return features, {"ctr_output": label_ctr, "ctcvr_score": label_cvr}
             return features, (labels, labels)
         return features
 
@@ -163,8 +165,20 @@ if __name__ == '__main__':
     ctcvr_model.compile(optimizer=opt, loss=["binary_crossentropy", "binary_crossentropy"], loss_weights=[1.0, 1.0],
                         metrics=[tf.keras.metrics.AUC()])
 
+    checkpoint_callback = ModelCheckpoint('./test.h5', verbose=1)
+    tensorboard_logs = TensorBoard(log_dir='./logs')
     # ==============tf1中必须写steps_per_epoch, 不然validation data loss和auc等指标显示在第一个epoch为0=====================
-    history = ctcvr_model.fit(train_model_input, epochs=10, verbose=1)
+    history = ctcvr_model.fit(train_model_input, epochs=10, verbose=1,
+                              callbacks=[checkpoint_callback, tensorboard_logs])
+
+    ctcvr_model.save('./model')
+
+    pred_ans = ctcvr_model.predict(train_model_input)
+    print(pred_ans)
+    print(ctcvr_model.output_names)
+    print(ctcvr_model.summary())
+    # dot_img_file = '/tmp/model_1.png'
+    # tf.keras.utils.plot_model(ctcvr_model, to_file=dot_img_file, show_shapes=True)
 
     print("===================test take========================")
     # for i in train_model_input.take(1):
